@@ -7,9 +7,25 @@ const restartBtn = document.getElementById('restartBtn');
 const scoreDiv = document.getElementById('score');
 const finalScoreDiv = document.getElementById('finalScore');
 const gameContainer = document.getElementById('gameContainer');
+const highScoreDiv = document.getElementById('highScore');
+const highScoreDisplay = document.getElementById('highScoreDisplay');
+const playerNameInput = document.getElementById('playerName');
+const bgMusic = document.getElementById('bgMusic');
 
 // Game variables
-let player, obstacles, score, gameSpeed, gravity, jumpPower, isJumping, isGameOver, animationId;
+let player, obstacles, score, gameSpeed, gravity, jumpPower, isJumping, isGameOver, animationId, decorShapes, playerName;
+let highScore = 0;
+let highScoreName = '';
+let minObstacleGap = 350;
+
+// Load high score from localStorage
+if (localStorage.getItem('gdashHighScore')) {
+    highScore = parseInt(localStorage.getItem('gdashHighScore'));
+    highScoreName = localStorage.getItem('gdashHighScoreName') || '';
+}
+if (highScoreDisplay) {
+    highScoreDisplay.textContent = highScore > 0 ? `High Score: ${highScore} (${highScoreName})` : '';
+}
 
 function resetGame() {
     player = {
@@ -24,19 +40,33 @@ function resetGame() {
     obstacles = [];
     score = 0;
     gameSpeed = 6;
-    gravity = 1.1;
-    jumpPower = -18;
+    gravity = 0.55; // slower gravity
+    jumpPower = -13; // adjust for slower gravity
     isJumping = false;
     isGameOver = false;
     scoreDiv.textContent = 'Score: 0';
+    highScoreDiv.textContent = `High Score: ${highScore} ${highScoreName ? '(' + highScoreName + ')' : ''}`;
+    // Decorations
+    decorShapes = [];
+    for (let i = 0; i < 12; i++) {
+        decorShapes.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * (canvas.height - 100),
+            r: 10 + Math.random() * 30,
+            color: `hsl(${Math.random()*360}, 80%, 60%)`,
+            speed: 0.5 + Math.random()
+        });
+    }
 }
 
 function startGame() {
+    playerName = playerNameInput.value.trim() || 'Player';
     startScreen.style.display = 'none';
     gameOverScreen.style.display = 'none';
     gameContainer.style.display = 'flex';
     resetGame();
     spawnObstacle();
+    playMusic();
     gameLoop();
 }
 
@@ -46,14 +76,26 @@ function gameOver() {
     gameContainer.style.display = 'none';
     gameOverScreen.style.display = 'flex';
     finalScoreDiv.textContent = `Final Score: ${score}`;
+    stopMusic();
+    // High score logic
+    if (score > highScore) {
+        highScore = score;
+        highScoreName = playerName;
+        localStorage.setItem('gdashHighScore', highScore);
+        localStorage.setItem('gdashHighScoreName', highScoreName);
+        if (highScoreDisplay) highScoreDisplay.textContent = `High Score: ${highScore} (${highScoreName})`;
+    }
 }
 
 function spawnObstacle() {
     const height = 40 + Math.random() * 40;
     const width = 20 + Math.random() * 30;
     const y = canvas.height - height - 20;
+    let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : 0;
+    let minGap = minObstacleGap + Math.random() * 100;
+    let spawnX = Math.max(canvas.width, lastX + minGap);
     obstacles.push({
-        x: canvas.width,
+        x: spawnX,
         y: y,
         width: width,
         height: height,
@@ -81,6 +123,25 @@ restartBtn.onclick = startGame;
 function gameLoop() {
     animationId = requestAnimationFrame(gameLoop);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw decorations (background shapes)
+    for (let shape of decorShapes) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(shape.x, shape.y, shape.r, 0, 2 * Math.PI);
+        ctx.fillStyle = shape.color;
+        ctx.fill();
+        ctx.restore();
+        shape.x -= shape.speed;
+        if (shape.x + shape.r < 0) {
+            shape.x = canvas.width + shape.r;
+            shape.y = Math.random() * (canvas.height - 100);
+            shape.r = 10 + Math.random() * 30;
+            shape.color = `hsl(${Math.random()*360}, 80%, 60%)`;
+            shape.speed = 0.5 + Math.random();
+        }
+    }
 
     // Draw player
     ctx.fillStyle = player.color;
@@ -120,12 +181,43 @@ function gameLoop() {
             scoreDiv.textContent = `Score: ${score}`;
             // Increase speed every 5 points
             if (score % 5 === 0) gameSpeed += 0.5;
+            // Update high score live
+            if (score > highScore) {
+                highScoreDiv.textContent = `High Score: ${score} (${playerName})`;
+            }
         }
     }
 
     // Spawn new obstacles
-    if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvas.width - 300) {
+    if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvas.width - minObstacleGap) {
         spawnObstacle();
+    }
+}
+
+gameOverScreen.style.display = 'none';
+gameContainer.style.display = 'none';
+
+// Music controls
+function playMusic() {
+    if (bgMusic) {
+        bgMusic.currentTime = 0;
+        bgMusic.volume = 0.3;
+        // Try to play, catch errors for autoplay policy
+        const playPromise = bgMusic.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(() => {
+                // If not allowed, play on first user interaction
+                document.body.addEventListener('pointerdown', () => {
+                    bgMusic.play();
+                }, { once: true });
+            });
+        }
+    }
+}
+function stopMusic() {
+    if (bgMusic) {
+        bgMusic.pause();
+        bgMusic.currentTime = 0;
     }
 }
 

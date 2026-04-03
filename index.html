@@ -8,18 +8,23 @@
 </head>
 <body>
     <div id="startScreen" class="screen">
-        <h1>Geometry Dash</h1>
-        <button id="startBtn">Start Game</button>
+        <h1>Geometry Jumper</h1>
+        <label for="playerName">Player Name:</label>
+        <input id="playerName" type="text" maxlength="12" placeholder="Enter your name" style="font-size:1.2em; padding:8px; margin:10px; border-radius:8px; border:1px solid #ccc;">
+        <button id="startBtn" class="big-btn">Start Game</button>
+        <div id="highScoreDisplay" style="margin-top:20px; font-size:1.2em;"></div>
     </div>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="400"></canvas>
         <div id="score">Score: 0</div>
+        <div id="highScore">High Score: 0</div>
     </div>
     <div id="gameOverScreen" class="screen">
         <h1>Game Over</h1>
         <div id="finalScore"></div>
-        <button id="restartBtn">Restart</button>
+        <button id="restartBtn" class="big-btn">Restart</button>
     </div>
+    <audio id="bgMusic" src="background-chime.mp3" loop></audio>
     <script src="game.js"></script>
 </body>
 </html>
