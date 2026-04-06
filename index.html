@@ -9,9 +9,30 @@
 <body>
     <div id="startScreen" class="screen">
         <h1>Geometry Jumper</h1>
+        <canvas id="menuDemo" width="800" height="240"></canvas>
+        <div id="menuControls">
+            <div id="levelSelect">
+                <label for="levels">Choose Level:</label>
+                <select id="levels">
+                    <option value="0">Forest (Calm)</option>
+                    <option value="1">Desert (Sunny)</option>
+                    <option value="2">Neon (Fast)</option>
+                </select>
+            </div>
+            <button id="muteBtn" class="big-btn">Unmute</button>
+        </div>
         <label for="playerName">Player Name:</label>
         <input id="playerName" type="text" maxlength="12" placeholder="Enter your name" style="font-size:1.2em; padding:8px; margin:10px; border-radius:8px; border:1px solid #ccc;">
         <button id="startBtn" class="big-btn">Start Game</button>
+        <div id="instructions">
+            <h3>How to Play</h3>
+            <ul>
+                <li>Jump to avoid obstacles (Space or click/tap).</li>
+                <li>Twisters appear in some levels and move unpredictably.</li>
+                <li>If you hit an obstacle you explode — try again with space.</li>
+                <li>Choose level styles and music before starting.</li>
+            </ul>
+        </div>
         <div id="highScoreDisplay" style="margin-top:20px; font-size:1.2em;"></div>
     </div>
     <div id="gameContainer">
@@ -22,9 +43,8 @@
     <div id="gameOverScreen" class="screen">
         <h1>Game Over</h1>
         <div id="finalScore"></div>
-        <button id="restartBtn" class="big-btn">Restart</button>
+        <button id="restartBtn" class="big-btn">Retry (Space)</button>
     </div>
-    <audio id="bgMusic" src="background-chime.mp3" loop></audio>
     <script src="game.js"></script>
 </body>
 </html>

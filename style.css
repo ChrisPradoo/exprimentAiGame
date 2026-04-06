@@ -42,6 +42,36 @@ body {
     align-items: center;
     z-index: 2;
 }
+/* Menu demo canvas */
+#menuDemo {
+    width: 800px;
+    height: 240px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.06));
+    border: 2px solid rgba(255,255,255,0.08);
+    margin: 12px 0 6px 0;
+}
+
+#menuControls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+}
+
+#levelSelect select {
+    font-size: 1.1em;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+#instructions {
+    margin-top: 8px;
+    text-align: left;
+    max-width: 760px;
+    background: rgba(0,0,0,0.25);
+    padding: 10px 14px;
+    border-radius: 10px;
+}
 canvas {
     background: #333;
     border: 2px solid #fff;
