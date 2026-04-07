@@ -18,6 +18,12 @@
                     <option value="1">Desert (Sunny)</option>
                     <option value="2">Neon (Fast)</option>
                     <option value="3">Crystal Caverns (Mystic)</option>
+                        <option value="4">Sky Ruins (Flips)</option>
+                        <option value="5">Lava Depths (Holes)</option>
+                        <option value="6">Cyber Grid (Vertical)</option>
+                        <option value="7">Haunted Woods (Ghosts)</option>
+                        <option value="8">Frozen Peaks (Slippery)</option>
+                        <option value="9">Rainbow Road (Music Sync)</option>
                 </select>
             </div>
             <button id="muteBtn" class="big-btn">Unmute</button>
@@ -38,9 +44,14 @@
         <div id="statsDisplay" style="margin-top:16px; font-size:1.1em;"></div>
     </div>
     <div id="gameContainer">
+        <!-- Main game canvas -->
         <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <!-- Progress bar for level completion -->
+        <div id="progressBarContainer" style="width:800px; height:18px; background:#222; border-radius:8px; margin:8px auto 0 auto; box-shadow:0 2px 8px #0003; overflow:hidden;">
+            <div id="progressBar" style="height:100%; width:0%; background:linear-gradient(90deg,#00eaff,#ff0055); border-radius:8px;"></div>
+        </div>
+        <!-- Score display -->
         <div id="score">Score: 0</div>
-        <div id="highScore">High Score: 0</div>
     </div>
     <div id="gameOverScreen" class="screen">
         <h1>Game Over</h1>

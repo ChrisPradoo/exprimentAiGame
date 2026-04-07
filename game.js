@@ -1,95 +1,159 @@
-const statsDisplay = document.getElementById('statsDisplay');
-function updateStatsDisplay() {
-    if (!statsDisplay) return;
-    let html = '<b>Level Progress:</b><br>';
-    for (let i = 0; i < LEVELS.length; i++) {
-        const lvl = LEVELS[i];
-        const done = completedLevels.includes(i);
-        const best = stats[lvl.id]?.bestScore || 0;
-        html += `<span style="color:${done ? '#0f0':'#fff'};font-weight:${done?'bold':'normal'}">${lvl.name}</span> - ${done ? '✔️ Completed' : '❌ Not completed'} | Best: ${best}<br>`;
-    }
-    statsDisplay.innerHTML = html;
-}
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const startScreen = document.getElementById('startScreen');
-const gameOverScreen = document.getElementById('gameOverScreen');
-const startBtn = document.getElementById('startBtn');
-const restartBtn = document.getElementById('restartBtn');
-const scoreDiv = document.getElementById('score');
-const finalScoreDiv = document.getElementById('finalScore');
-const gameContainer = document.getElementById('gameContainer');
-const highScoreDiv = document.getElementById('highScore');
-const highScoreDisplay = document.getElementById('highScoreDisplay');
-const playerNameInput = document.getElementById('playerName');
-const menuDemoCanvas = document.getElementById('menuDemo');
-const levelsSelect = document.getElementById('levels');
-const muteBtn = document.getElementById('muteBtn');
-const mainMenuBtn = document.getElementById('mainMenuBtn');
-const endingScreen = document.getElementById('endingScreen');
-const endingTitle = document.getElementById('endingTitle');
-const endingStats = document.getElementById('endingStats');
-const nextLevelBtn = document.getElementById('nextLevelBtn');
-const endingMenuBtn = document.getElementById('endingMenuBtn');
-
-// Track completed levels and stats
+// --- Level lengths for progress bar and completion ---
+const LEVEL_LENGTHS = [20, 22, 24, 26, 28, 30, 32, 28, 26, 32];
+// --- Global game state variables ---
+let obstacles = [];
+let decorShapes = [];
+let score = 0;
+let gameSpeed = 6;
+let gravity = 0.55;
+let jumpPower = -13;
+let isJumping = false;
+let minObstacleGap = 320;
 let completedLevels = JSON.parse(localStorage.getItem('gdashCompletedLevels') || '[]');
 let stats = JSON.parse(localStorage.getItem('gdashStats') || '{}');
-
-// Game variables
-let player, obstacles, score, gameSpeed, gravity, jumpPower, isJumping, isGameOver, animationId, decorShapes, playerName;
-let bgMusicAudio = null;
-let muted = false;
-let selectedLevelIndex = 0;
 let isDying = false;
 let deathParticles = [];
-let deathTimer = 0;
-let highScore = 0;
-let highScoreName = '';
-let minObstacleGap = 350;
+let animationId = null;
+let selectedLevelIndex = 0;
+let highScore = parseInt(localStorage.getItem('gdashHighScore') || '0', 10);
+let highScoreName = localStorage.getItem('gdashHighScoreName') || '';
+// --- Player object ---
+let player = {
+    x: 80,
+    y: 0,
+    width: 36,
+    height: 36,
+    color: '#00eaff',
+    velocityY: 0,
+    onGround: false
+};
+// --- Main game canvas and context ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas ? canvas.getContext('2d') : null;
+// --- Progress bar element ---
+const progressBar = document.getElementById('progressBar');
+const progressBarContainer = document.getElementById('progressBarContainer');
+// --- UI Elements ---
+const statsDisplay = document.getElementById('statsDisplay');
+const menuDemoCanvas = document.getElementById('menuDemo');
+const levelsSelect = document.getElementById('levels');
+const playerNameInput = document.getElementById('playerName');
+const endingMenuBtn = document.getElementById('endingMenuBtn');
+const nextLevelBtn = document.getElementById('nextLevelBtn');
+const muteBtn = document.getElementById('muteBtn');
+const startScreen = document.getElementById('startScreen');
+const gameContainer = document.getElementById('gameContainer');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const endingScreen = document.getElementById('endingScreen');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const mainMenuBtn = document.getElementById('mainMenuBtn');
+const finalScoreDiv = document.getElementById('finalScore');
+const endingTitle = document.getElementById('endingTitle');
+const endingStats = document.getElementById('endingStats');
+const highScoreDisplay = document.getElementById('highScoreDisplay');
+const scoreDiv = document.getElementById('score');
 
-// Load high score from localStorage
-if (localStorage.getItem('gdashHighScore')) {
-    highScore = parseInt(localStorage.getItem('gdashHighScore'));
-    highScoreName = localStorage.getItem('gdashHighScoreName') || '';
-}
-if (highScoreDisplay) {
-    highScoreDisplay.textContent = highScore > 0 ? `High Score: ${highScore} (${highScoreName})` : '';
-}
-
-// Levels / biomes
+// --- Level definitions: Add new levels with unique mechanics and decorations ---
 const LEVELS = [
     { id: 'forest', name: 'Forest', bgGradient: 'linear-gradient(120deg,#022 0%, #0b3 100%)', music: 'music_forest.mp3', obstacleColor: '#2b8a3e', twisterChance: 0.06, baseSpeed: 5, decor: 'trees' },
     { id: 'desert', name: 'Desert', bgGradient: 'linear-gradient(120deg,#f6e27a 0%, #f39c12 100%)', music: 'music_desert.mp3', obstacleColor: '#b5651d', twisterChance: 0.04, baseSpeed: 6, decor: 'cactus' },
     { id: 'neon', name: 'Neon', bgGradient: 'linear-gradient(120deg,#0ff 0%, #ff00d4 100%)', music: 'music_neon.mp3', obstacleColor: '#ff0055', twisterChance: 0.12, baseSpeed: 7, decor: 'neon' },
-    { id: 'crystal', name: 'Crystal Caverns', bgGradient: 'linear-gradient(120deg,#b3e6ff 0%, #6a1b9a 100%)', music: 'music_crystal.mp3', obstacleColor: '#7c4dff', twisterChance: 0.09, baseSpeed: 6, decor: 'crystals' }
+    { id: 'crystal', name: 'Crystal Caverns', bgGradient: 'linear-gradient(120deg,#b3e6ff 0%, #6a1b9a 100%)', music: 'music_crystal.mp3', obstacleColor: '#7c4dff', twisterChance: 0.09, baseSpeed: 6, decor: 'crystals' },
+    { id: 'sky', name: 'Sky Ruins', bgGradient: 'linear-gradient(120deg,#b2e0ff 0%, #fff 100%)', music: 'music_sky.mp3', obstacleColor: '#7ecfff', twisterChance: 0.08, baseSpeed: 6.5, decor: 'clouds', flip: true },
+    { id: 'lava', name: 'Lava Depths', bgGradient: 'linear-gradient(120deg,#ff512f 0%, #dd2476 100%)', music: 'music_lava.mp3', obstacleColor: '#ff5722', twisterChance: 0.07, baseSpeed: 7, decor: 'lava', holes: true },
+    { id: 'cyber', name: 'Cyber Grid', bgGradient: 'linear-gradient(120deg,#222 0%, #0ff 100%)', music: 'music_cyber.mp3', obstacleColor: '#00fff7', twisterChance: 0.13, baseSpeed: 7.5, decor: 'grid', vertical: true },
+    { id: 'haunt', name: 'Haunted Woods', bgGradient: 'linear-gradient(120deg,#222 0%, #4e4376 100%)', music: 'music_haunt.mp3', obstacleColor: '#b39ddb', twisterChance: 0.10, baseSpeed: 6, decor: 'ghosts', ghostObstacles: true },
+    { id: 'frozen', name: 'Frozen Peaks', bgGradient: 'linear-gradient(120deg,#e0eafc 0%, #cfdef3 100%)', music: 'music_frozen.mp3', obstacleColor: '#90caf9', twisterChance: 0.09, baseSpeed: 6.2, decor: 'ice', slippery: true },
+    { id: 'rainbow', name: 'Rainbow Road', bgGradient: 'linear-gradient(120deg,#ffecd2 0%, #fcb69f 100%)', music: 'music_rainbow.mp3', obstacleColor: '#ff00cc', twisterChance: 0.15, baseSpeed: 8, decor: 'rainbow', musicSync: true }
 ];
 
-// Level length in obstacles (can be tuned per level)
-const LEVEL_LENGTHS = [18, 22, 26, 30, 36];
+let currentLevel = LEVELS[0];
+
+// Update the stats panel with level progress and best run for each level
+function updateStatsDisplay() {
+    if (!statsDisplay) return;
+    let html = '<b>Level Progress</b><div style="margin-top:6px;">';
+    for (let i = 0; i < LEVELS.length; i++) {
+        const lvl = LEVELS[i];
+        const done = completedLevels.includes(i);
+        const best = stats[lvl.id]?.bestScore || 0;
+        html += `<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;\">`;
+        html += `<span style=\"color:${done ? '#0f0':'#fff'};font-weight:${done?'bold':'normal'}\">${lvl.name}</span>`;
+        html += `<span>${done ? '✔️' : '❌'} <span style=\"color:#00eaff\">Best Run:</span> <b>${best}</b></span>`;
+        html += `</div>`;
+    }
+    html += '</div>';
+    statsDisplay.innerHTML = html;
+}
 
 function resetGame() {
-    player = {
-        x: 80,
-        y: 300,
-        width: 40,
-        height: 40,
-        velocityY: 0,
-        color: '#00eaff',
-        onGround: true
-    };
     obstacles = [];
     score = 0;
     gameSpeed = 6;
     gravity = 0.55; // slower gravity
     jumpPower = -13; // adjust for slower gravity
     isJumping = false;
-    isGameOver = false;
-    scoreDiv.textContent = 'Score: 0';
-    highScoreDiv.textContent = `High Score: ${highScore} ${highScoreName ? '(' + highScoreName + ')' : ''}`;
-    // Decorations
+    // Reset player state
+    player.x = 80;
+    player.y = canvas.height - player.height - 20;
+    player.velocityY = 0;
+    player.onGround = true;
+    // spawnObstacle function below
+    const level = currentLevel;
+    // Twister obstacle (appears in most levels)
+    const isTwister = Math.random() < (level.twisterChance || 0);
+    if (isTwister) {
+        const size = 48 + Math.random() * 48;
+        let y = 80 + Math.random() * (canvas.height - 200);
+        // In vertical levels, twisters can appear anywhere
+        if (level.vertical) y = 40 + Math.random() * (canvas.height - 80);
+        let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : 0;
+        let minGap = minObstacleGap + Math.random() * 120;
+        let spawnX = Math.max(canvas.width + 100, lastX + minGap);
+        obstacles.push({ x: spawnX, y: y, size: size, type: 'twister', color: level.obstacleColor });
+        return;
+    }
+    // Special: Holes (Lava Depths)
+    if (level.holes && Math.random() < 0.22) {
+        // A hole is a gap in the ground the player must jump over
+        const width = 60 + Math.random() * 60;
+        let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : 0;
+        let minGap = minObstacleGap + Math.random() * 100;
+        let spawnX = Math.max(canvas.width, lastX + minGap);
+        obstacles.push({ x: spawnX, y: canvas.height - 20, width: width, height: 20, type: 'hole', color: '#222' });
+        return;
+    }
+    // Special: Ghost obstacles (Haunted Woods)
+    if (level.ghostObstacles && Math.random() < 0.18) {
+        const width = 32 + Math.random() * 32;
+        const height = 32 + Math.random() * 32;
+        let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : 0;
+        let minGap = minObstacleGap + Math.random() * 100;
+        let spawnX = Math.max(canvas.width, lastX + minGap);
+        let y = 80 + Math.random() * (canvas.height - 180);
+        obstacles.push({ x: spawnX, y: y, width: width, height: height, type: 'ghost', color: '#fff', alpha: 0.5 + Math.random() * 0.4 });
+        return;
+    }
+    // Special: Slippery (Frozen Peaks) - normal obstacles, but player slides
+    // Special: Flipping (Sky Ruins) - handled in game loop
+    // Special: Vertical (Cyber Grid) - obstacles can be higher
+    const height = (level.vertical ? 60 : 40) + Math.random() * (level.vertical ? 60 : 40);
+    const width = 20 + Math.random() * 30;
+    let y = canvas.height - height - 20;
+    if (level.vertical && Math.random() < 0.3) {
+        // Place some obstacles higher up
+        y = 60 + Math.random() * (canvas.height - height - 100);
+    }
+    let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : 0;
+    let minGap = minObstacleGap + Math.random() * 100;
+    let spawnX = Math.max(canvas.width, lastX + minGap);
+    obstacles.push({ x: spawnX, y: y, width: width, height: height, color: level.obstacleColor });
+        isGameOver = false;
+        scoreDiv.textContent = 'Score: 0';
+    // Decorations for the current level
     decorShapes = [];
-    const level = LEVELS[selectedLevelIndex] || LEVELS[0];
+    // 'level' already declared in the parent scope if needed
     for (let i = 0; i < 12; i++) {
         if (level.decor === 'trees') {
             // Forest: trees
@@ -158,7 +222,8 @@ let levelCompleted = false;
 function startGame(easyRetry = false) {
     playerName = playerNameInput.value.trim() || 'Player';
     selectedLevelIndex = parseInt(levelsSelect.value || '0', 10);
-    const level = LEVELS[selectedLevelIndex];
+    currentLevel = LEVELS[selectedLevelIndex];
+    const level = currentLevel;
     // Apply visual theme
     document.body.style.background = level.bgGradient;
     startScreen.style.display = 'none';
@@ -219,7 +284,7 @@ function gameOver() {
 }
 
 function spawnObstacle() {
-    const level = LEVELS[selectedLevelIndex] || LEVELS[0];
+    const level = currentLevel;
     // Decide whether to spawn a twister
     const isTwister = Math.random() < (level.twisterChance || 0);
     if (isTwister) {
@@ -261,19 +326,26 @@ canvas.addEventListener('mousedown', handleJump);
 
 startBtn.onclick = startGame;
 
-restartBtn.onclick = () => startGame(true);
-mainMenuBtn.onclick = () => {
-    // Hide game over and game, show main menu
+function hideAllScreens() {
+    startScreen.style.display = 'none';
     gameOverScreen.style.display = 'none';
     gameContainer.style.display = 'none';
+    endingScreen.style.display = 'none';
+}
+
+restartBtn.onclick = () => {
+    hideAllScreens();
+    startGame(true);
+};
+mainMenuBtn.onclick = () => {
+    hideAllScreens();
     startScreen.style.display = 'flex';
     updateStatsDisplay();
-    // Optionally restart menu demo
     if (menuDemoCanvas) startMenuDemo();
 };
 if (endingMenuBtn) {
     endingMenuBtn.onclick = () => {
-        endingScreen.style.display = 'none';
+        hideAllScreens();
         startScreen.style.display = 'flex';
         updateStatsDisplay();
         if (menuDemoCanvas) startMenuDemo();
@@ -290,11 +362,19 @@ muteBtn.addEventListener('click', () => {
     if (bgMusicAudio) bgMusicAudio.muted = muted;
 });
 
+// Main game loop: handles drawing, physics, obstacle logic, and progress bar
+// Main game loop: handles drawing, physics, obstacle logic, and progress bar
 function gameLoop() {
     animationId = requestAnimationFrame(gameLoop);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw decorations (background shapes)
+        // Update progress bar (shows how far the player is in the level)
+        if (progressBar) {
+            const total = LEVEL_LENGTHS[selectedLevelIndex] || 20;
+            const percent = Math.min(1, levelObstaclesPassed / total);
+            progressBar.style.width = (percent * 100) + '%';
+        }
     for (let shape of decorShapes) {
         ctx.save();
         ctx.globalAlpha = 0.3;
@@ -352,18 +432,32 @@ function gameLoop() {
         }
     }
 
-    // Draw player
+    // --- Level-specific mechanics ---
+    const level = currentLevel;
+    // Flipping mechanic (Sky Ruins): flip the canvas vertically every 7 obstacles
+    let flipped = false;
+    if (level.flip && levelObstaclesPassed > 0 && Math.floor(levelObstaclesPassed / 7) % 2 === 1) {
+        ctx.save();
+        ctx.translate(0, canvas.height);
+        ctx.scale(1, -1);
+        flipped = true;
+    }
+    // Draw player (main character)
     ctx.fillStyle = player.color;
     ctx.fillRect(player.x, player.y, player.width, player.height);
+    if (flipped) ctx.restore();
 
-    // Player physics
+    // Player physics (gravity, jumping, ground collision)
     if (!isDying) {
+        // Slippery mechanic (Frozen Peaks): less friction
+        let friction = (currentLevel.slippery ? 0.98 : 0.85);
         player.y += player.velocityY;
         player.velocityY += gravity;
         if (player.y + player.height >= canvas.height - 20) {
             player.y = canvas.height - player.height - 20;
-            player.velocityY = 0;
+            player.velocityY *= -0.18 * (level.slippery ? 0.5 : 1); // bounce a bit if slippery
             player.onGround = true;
+            if (currentLevel.slippery) player.velocityY *= friction;
         }
     }
 
@@ -371,12 +465,10 @@ function gameLoop() {
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
         obs.x -= gameSpeed;
+        // --- Twister obstacle ---
         if (obs.type === 'twister') {
-            // twister rotates and moves vertically in a sine wave
             const t = performance.now() / 1000;
-            const amp = 18;
             obs.y += Math.sin(t * (0.5 + obs.size * 0.01)) * 0.6;
-            // draw spiral-ish
             ctx.save();
             ctx.translate(obs.x + obs.size/2, obs.y + obs.size/2);
             ctx.rotate(t % (Math.PI*2));
@@ -387,35 +479,109 @@ function gameLoop() {
                 ctx.fill();
             }
             ctx.restore();
-
-            // approximate collision circle
+            // Collision: circle vs player
             const cx = obs.x + obs.size/2;
             const cy = obs.y + obs.size/2;
             const prx = player.x + player.width/2;
             const pry = player.y + player.height/2;
             const dist = Math.hypot(cx - prx, cy - pry);
             if (dist < obs.size * 0.6 + Math.max(player.width, player.height)/2) {
-                // collision
                 createDeathParticles();
                 gameOver();
                 return;
             }
-
             if (obs.x + obs.size < 0) {
                 obstacles.splice(i, 1);
                 score++;
                 scoreDiv.textContent = `Score: ${score}`;
                 if (score % 5 === 0) gameSpeed += 0.5;
-                if (score > highScore) highScoreDiv.textContent = `High Score: ${score} (${playerName})`;
             }
             continue;
         }
-
-        // normal obstacle
+        // --- Hole obstacle (Lava Depths) ---
+        if (obs.type === 'hole') {
+            ctx.save();
+            ctx.fillStyle = '#222';
+            ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+            ctx.restore();
+            // If player is over the hole and on ground, fall in
+            if (
+                player.x + player.width > obs.x &&
+                player.x < obs.x + obs.width &&
+                player.y + player.height >= canvas.height - 20 &&
+                !isDying
+            ) {
+                player.onGround = false;
+                player.velocityY = 6;
+                createDeathParticles();
+                gameOver();
+                return;
+            }
+            if (obs.x + obs.width < 0) {
+                obstacles.splice(i, 1);
+                score++;
+                levelObstaclesPassed++;
+                scoreDiv.textContent = `Score: ${score}`;
+                if (score % 5 === 0) gameSpeed += 0.5;
+                if (!levelCompleted && levelObstaclesPassed >= (LEVEL_LENGTHS[selectedLevelIndex] || 20)) {
+                    levelCompleted = true;
+                    setTimeout(showEndingScreen, 800);
+                }
+            }
+            continue;
+        }
+        // --- Ghost obstacle (Haunted Woods) ---
+        if (obs.type === 'ghost') {
+            ctx.save();
+            ctx.globalAlpha = obs.alpha || 0.7;
+            ctx.fillStyle = obs.color;
+            ctx.beginPath();
+            ctx.ellipse(obs.x + obs.width/2, obs.y + obs.height/2, obs.width/2, obs.height/2, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.restore();
+            // Ghosts can be passed through, but if player is inside for too long, die
+            if (
+                player.x < obs.x + obs.width &&
+                player.x + player.width > obs.x &&
+                player.y < obs.y + obs.height &&
+                player.y + player.height > obs.y
+            ) {
+                // 1 in 3 chance to die if inside ghost
+                if (Math.random() < 0.33) {
+                    createDeathParticles();
+                    gameOver();
+                    return;
+                }
+            }
+            if (obs.x + obs.width < 0) {
+                obstacles.splice(i, 1);
+                score++;
+                levelObstaclesPassed++;
+                scoreDiv.textContent = `Score: ${score}`;
+                if (score % 5 === 0) gameSpeed += 0.5;
+                if (!levelCompleted && levelObstaclesPassed >= (LEVEL_LENGTHS[selectedLevelIndex] || 20)) {
+                    levelCompleted = true;
+                    setTimeout(showEndingScreen, 800);
+                }
+            }
+            continue;
+        }
+        // --- Normal obstacle (rectangle) ---
         ctx.fillStyle = obs.color;
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-
-        // Collision detection
+        // --- Music sync (Rainbow Road): pulse color with music ---
+        if (currentLevel.musicSync && bgMusicAudio) {
+            // Pulse color based on music time
+            const t = bgMusicAudio.currentTime || 0;
+            if (Math.floor(t*2)%2 === 0) {
+                ctx.globalAlpha = 0.7;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+        // --- Collision: player vs rectangle ---
         if (
             player.x < obs.x + obs.width &&
             player.x + player.width > obs.x &&
@@ -426,20 +592,13 @@ function gameLoop() {
             gameOver();
             return;
         }
-
-        // Remove off-screen obstacles
+        // Remove off-screen obstacle
         if (obs.x + obs.width < 0) {
             obstacles.splice(i, 1);
             score++;
             levelObstaclesPassed++;
             scoreDiv.textContent = `Score: ${score}`;
-            // Increase speed every 5 points
             if (score % 5 === 0) gameSpeed += 0.5;
-            // Update high score live
-            if (score > highScore) {
-                highScoreDiv.textContent = `High Score: ${score} (${playerName})`;
-            }
-            // Check for level end
             if (!levelCompleted && levelObstaclesPassed >= (LEVEL_LENGTHS[selectedLevelIndex] || 20)) {
                 levelCompleted = true;
                 setTimeout(showEndingScreen, 800);
