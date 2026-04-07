@@ -1,3 +1,15 @@
+const statsDisplay = document.getElementById('statsDisplay');
+function updateStatsDisplay() {
+    if (!statsDisplay) return;
+    let html = '<b>Level Progress:</b><br>';
+    for (let i = 0; i < LEVELS.length; i++) {
+        const lvl = LEVELS[i];
+        const done = completedLevels.includes(i);
+        const best = stats[lvl.id]?.bestScore || 0;
+        html += `<span style="color:${done ? '#0f0':'#fff'};font-weight:${done?'bold':'normal'}">${lvl.name}</span> - ${done ? '✔️ Completed' : '❌ Not completed'} | Best: ${best}<br>`;
+    }
+    statsDisplay.innerHTML = html;
+}
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const startScreen = document.getElementById('startScreen');
@@ -13,6 +25,16 @@ const playerNameInput = document.getElementById('playerName');
 const menuDemoCanvas = document.getElementById('menuDemo');
 const levelsSelect = document.getElementById('levels');
 const muteBtn = document.getElementById('muteBtn');
+const mainMenuBtn = document.getElementById('mainMenuBtn');
+const endingScreen = document.getElementById('endingScreen');
+const endingTitle = document.getElementById('endingTitle');
+const endingStats = document.getElementById('endingStats');
+const nextLevelBtn = document.getElementById('nextLevelBtn');
+const endingMenuBtn = document.getElementById('endingMenuBtn');
+
+// Track completed levels and stats
+let completedLevels = JSON.parse(localStorage.getItem('gdashCompletedLevels') || '[]');
+let stats = JSON.parse(localStorage.getItem('gdashStats') || '{}');
 
 // Game variables
 let player, obstacles, score, gameSpeed, gravity, jumpPower, isJumping, isGameOver, animationId, decorShapes, playerName;
@@ -37,10 +59,14 @@ if (highScoreDisplay) {
 
 // Levels / biomes
 const LEVELS = [
-    { id: 'forest', name: 'Forest', bgGradient: 'linear-gradient(120deg,#022 0%, #0b3 100%)', music: 'music_forest.mp3', obstacleColor: '#2b8a3e', twisterChance: 0.06, baseSpeed: 5 },
-    { id: 'desert', name: 'Desert', bgGradient: 'linear-gradient(120deg,#f6e27a 0%, #f39c12 100%)', music: 'music_desert.mp3', obstacleColor: '#b5651d', twisterChance: 0.04, baseSpeed: 6 },
-    { id: 'neon', name: 'Neon', bgGradient: 'linear-gradient(120deg,#0ff 0%, #ff00d4 100%)', music: 'music_neon.mp3', obstacleColor: '#ff0055', twisterChance: 0.12, baseSpeed: 7 }
+    { id: 'forest', name: 'Forest', bgGradient: 'linear-gradient(120deg,#022 0%, #0b3 100%)', music: 'music_forest.mp3', obstacleColor: '#2b8a3e', twisterChance: 0.06, baseSpeed: 5, decor: 'trees' },
+    { id: 'desert', name: 'Desert', bgGradient: 'linear-gradient(120deg,#f6e27a 0%, #f39c12 100%)', music: 'music_desert.mp3', obstacleColor: '#b5651d', twisterChance: 0.04, baseSpeed: 6, decor: 'cactus' },
+    { id: 'neon', name: 'Neon', bgGradient: 'linear-gradient(120deg,#0ff 0%, #ff00d4 100%)', music: 'music_neon.mp3', obstacleColor: '#ff0055', twisterChance: 0.12, baseSpeed: 7, decor: 'neon' },
+    { id: 'crystal', name: 'Crystal Caverns', bgGradient: 'linear-gradient(120deg,#b3e6ff 0%, #6a1b9a 100%)', music: 'music_crystal.mp3', obstacleColor: '#7c4dff', twisterChance: 0.09, baseSpeed: 6, decor: 'crystals' }
 ];
+
+// Level length in obstacles (can be tuned per level)
+const LEVEL_LENGTHS = [18, 22, 26, 30, 36];
 
 function resetGame() {
     player = {
@@ -63,19 +89,71 @@ function resetGame() {
     highScoreDiv.textContent = `High Score: ${highScore} ${highScoreName ? '(' + highScoreName + ')' : ''}`;
     // Decorations
     decorShapes = [];
+    const level = LEVELS[selectedLevelIndex] || LEVELS[0];
     for (let i = 0; i < 12; i++) {
-        decorShapes.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * (canvas.height - 100),
-            r: 10 + Math.random() * 30,
-            color: `hsl(${Math.random()*360}, 80%, 60%)`,
-            speed: 0.5 + Math.random()
-        });
+        if (level.decor === 'trees') {
+            // Forest: trees
+            decorShapes.push({
+                type: 'tree',
+                x: Math.random() * canvas.width,
+                y: canvas.height - 80 - Math.random() * 60,
+                w: 18 + Math.random() * 18,
+                h: 60 + Math.random() * 40,
+                color: '#145a32',
+                speed: 0.7 + Math.random() * 0.5
+            });
+        } else if (level.decor === 'cactus') {
+            // Desert: cactus
+            decorShapes.push({
+                type: 'cactus',
+                x: Math.random() * canvas.width,
+                y: canvas.height - 60 - Math.random() * 30,
+                w: 14 + Math.random() * 10,
+                h: 40 + Math.random() * 30,
+                color: '#b5651d',
+                speed: 0.6 + Math.random() * 0.4
+            });
+        } else if (level.decor === 'crystals') {
+            // Crystal Caverns: crystals
+            decorShapes.push({
+                type: 'crystal',
+                x: Math.random() * canvas.width,
+                y: canvas.height - 70 - Math.random() * 40,
+                w: 16 + Math.random() * 18,
+                h: 50 + Math.random() * 40,
+                color: `hsl(${260 + Math.random()*60}, 80%, 70%)`,
+                speed: 0.8 + Math.random() * 0.6
+            });
+        } else if (level.decor === 'neon') {
+            // Neon: glowing shapes
+            decorShapes.push({
+                type: 'neon',
+                x: Math.random() * canvas.width,
+                y: Math.random() * (canvas.height - 100),
+                r: 10 + Math.random() * 30,
+                color: `hsl(${Math.random()*360}, 100%, 60%)`,
+                speed: 1.2 + Math.random() * 0.8
+            });
+        } else {
+            // fallback: colored circles
+            decorShapes.push({
+                type: 'circle',
+                x: Math.random() * canvas.width,
+                y: Math.random() * (canvas.height - 100),
+                r: 10 + Math.random() * 30,
+                color: `hsl(${Math.random()*360}, 80%, 60%)`,
+                speed: 0.5 + Math.random()
+            });
+        }
     }
     isDying = false;
     deathParticles = [];
     deathTimer = 0;
+    levelObstaclesPassed = 0;
 }
+
+let levelObstaclesPassed = 0;
+let levelCompleted = false;
 
 function startGame(easyRetry = false) {
     playerName = playerNameInput.value.trim() || 'Player';
@@ -87,6 +165,7 @@ function startGame(easyRetry = false) {
     gameOverScreen.style.display = 'none';
     gameContainer.style.display = 'flex';
     resetGame();
+    levelCompleted = false;
     // level-specific tuning
     gameSpeed = easyRetry ? Math.max(3, level.baseSpeed - 1.5) : level.baseSpeed;
     minObstacleGap = easyRetry ? 420 : 320;
@@ -94,6 +173,26 @@ function startGame(easyRetry = false) {
     spawnObstacle();
     playMusicForLevel(level);
     gameLoop();
+}
+
+function showEndingScreen() {
+    // Mark level as completed
+    if (!completedLevels.includes(selectedLevelIndex)) {
+        completedLevels.push(selectedLevelIndex);
+        localStorage.setItem('gdashCompletedLevels', JSON.stringify(completedLevels));
+    }
+    // Update stats
+    stats[LEVELS[selectedLevelIndex].id] = {
+        bestScore: Math.max(stats[LEVELS[selectedLevelIndex].id]?.bestScore || 0, score),
+        completed: true
+    };
+    localStorage.setItem('gdashStats', JSON.stringify(stats));
+    // Show ending UI
+    endingTitle.textContent = `Level Complete! (${LEVELS[selectedLevelIndex].name})`;
+    endingStats.innerHTML = `<b>Score:</b> ${score}<br><b>Level:</b> ${LEVELS[selectedLevelIndex].name}`;
+    endingScreen.style.display = 'flex';
+    gameContainer.style.display = 'none';
+    stopMusic();
 }
 
 function gameOver() {
@@ -161,7 +260,25 @@ document.addEventListener('keydown', (e) => {
 canvas.addEventListener('mousedown', handleJump);
 
 startBtn.onclick = startGame;
+
 restartBtn.onclick = () => startGame(true);
+mainMenuBtn.onclick = () => {
+    // Hide game over and game, show main menu
+    gameOverScreen.style.display = 'none';
+    gameContainer.style.display = 'none';
+    startScreen.style.display = 'flex';
+    updateStatsDisplay();
+    // Optionally restart menu demo
+    if (menuDemoCanvas) startMenuDemo();
+};
+if (endingMenuBtn) {
+    endingMenuBtn.onclick = () => {
+        endingScreen.style.display = 'none';
+        startScreen.style.display = 'flex';
+        updateStatsDisplay();
+        if (menuDemoCanvas) startMenuDemo();
+    };
+}
 
 levelsSelect.addEventListener('change', () => {
     selectedLevelIndex = parseInt(levelsSelect.value, 10);
@@ -181,18 +298,57 @@ function gameLoop() {
     for (let shape of decorShapes) {
         ctx.save();
         ctx.globalAlpha = 0.3;
-        ctx.beginPath();
-        ctx.arc(shape.x, shape.y, shape.r, 0, 2 * Math.PI);
-        ctx.fillStyle = shape.color;
-        ctx.fill();
+        if (shape.type === 'tree') {
+            // Draw tree trunk
+            ctx.fillStyle = '#784421';
+            ctx.fillRect(shape.x + shape.w/2 - 4, shape.y + shape.h - 18, 8, 18);
+            // Draw tree foliage
+            ctx.beginPath();
+            ctx.ellipse(shape.x + shape.w/2, shape.y + shape.h/2, shape.w, shape.h/2, 0, 0, Math.PI*2);
+            ctx.fillStyle = shape.color;
+            ctx.fill();
+        } else if (shape.type === 'cactus') {
+            // Draw cactus
+            ctx.fillStyle = shape.color;
+            ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
+            ctx.beginPath();
+            ctx.arc(shape.x + shape.w/2, shape.y, shape.w/2, Math.PI, 0);
+            ctx.fill();
+        } else if (shape.type === 'crystal') {
+            // Draw crystal
+            ctx.beginPath();
+            ctx.moveTo(shape.x + shape.w/2, shape.y);
+            ctx.lineTo(shape.x + shape.w, shape.y + shape.h);
+            ctx.lineTo(shape.x, shape.y + shape.h);
+            ctx.closePath();
+            ctx.fillStyle = shape.color;
+            ctx.shadowColor = shape.color;
+            ctx.shadowBlur = 12;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        } else if (shape.type === 'neon') {
+            ctx.beginPath();
+            ctx.arc(shape.x, shape.y, shape.r, 0, 2 * Math.PI);
+            ctx.fillStyle = shape.color;
+            ctx.shadowColor = shape.color;
+            ctx.shadowBlur = 16;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.beginPath();
+            ctx.arc(shape.x, shape.y, shape.r, 0, 2 * Math.PI);
+            ctx.fillStyle = shape.color;
+            ctx.fill();
+        }
         ctx.restore();
+        // Move shape
         shape.x -= shape.speed;
-        if (shape.x + shape.r < 0) {
-            shape.x = canvas.width + shape.r;
+        // Respawn if off screen
+        if ((shape.type === 'tree' || shape.type === 'cactus' || shape.type === 'crystal') && shape.x + shape.w < 0) {
+            shape.x = canvas.width + shape.w;
+        } else if ((shape.type === 'neon' || shape.type === 'circle') && shape.x + (shape.r || 0) < 0) {
+            shape.x = canvas.width + (shape.r || 0);
             shape.y = Math.random() * (canvas.height - 100);
-            shape.r = 10 + Math.random() * 30;
-            shape.color = `hsl(${Math.random()*360}, 80%, 60%)`;
-            shape.speed = 0.5 + Math.random();
         }
     }
 
@@ -275,6 +431,7 @@ function gameLoop() {
         if (obs.x + obs.width < 0) {
             obstacles.splice(i, 1);
             score++;
+            levelObstaclesPassed++;
             scoreDiv.textContent = `Score: ${score}`;
             // Increase speed every 5 points
             if (score % 5 === 0) gameSpeed += 0.5;
@@ -282,11 +439,16 @@ function gameLoop() {
             if (score > highScore) {
                 highScoreDiv.textContent = `High Score: ${score} (${playerName})`;
             }
+            // Check for level end
+            if (!levelCompleted && levelObstaclesPassed >= (LEVEL_LENGTHS[selectedLevelIndex] || 20)) {
+                levelCompleted = true;
+                setTimeout(showEndingScreen, 800);
+            }
         }
     }
 
     // Spawn new obstacles
-    if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvas.width - minObstacleGap) {
+    if (!levelCompleted && (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvas.width - minObstacleGap)) {
         spawnObstacle();
     }
 
@@ -436,7 +598,28 @@ levelsSelect && levelsSelect.addEventListener('change', () => {
     resetDemo();
 });
 
+// Ending screen buttons
+if (nextLevelBtn) {
+    nextLevelBtn.onclick = () => {
+        // Go to next level or main menu if last
+        let nextIdx = (selectedLevelIndex + 1) % LEVELS.length;
+        levelsSelect.value = nextIdx;
+        selectedLevelIndex = nextIdx;
+        endingScreen.style.display = 'none';
+        startGame();
+    };
+}
+if (endingMenuBtn) {
+    endingMenuBtn.onclick = () => {
+        endingScreen.style.display = 'none';
+        startScreen.style.display = 'flex';
+        if (menuDemoCanvas) startMenuDemo();
+    };
+}
+
 // Initial screen setup
 startScreen.style.display = 'flex';
 gameOverScreen.style.display = 'none';
 gameContainer.style.display = 'none';
+endingScreen.style.display = 'none';
+updateStatsDisplay();
