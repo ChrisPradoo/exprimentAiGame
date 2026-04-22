@@ -18,3 +18,10 @@ It focuses on basic physics, collision detection, and smooth animation timing.
 ## Status
 
 Actively being improved with new features, visuals, and gameplay tweaks.
+
+## Main Menu
+<img width="1915" height="982" alt="Screenshot 2026-04-22 152544" src="https://github.com/user-attachments/assets/126069bb-02fd-44e8-98fc-fdfdbfa60d88" />
+
+## Preview of level
+<img width="1901" height="938" alt="image" src="https://github.com/user-attachments/assets/369f5712-f541-48ea-8b5c-d61b77b03c05" />
+
